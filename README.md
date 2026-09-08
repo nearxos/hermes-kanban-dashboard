@@ -40,6 +40,16 @@ VITE_HERMES_KANBAN_ORIGIN=http://127.0.0.1:8790
 
 The Vite dev/preview proxy maps `/hermes-api` to `127.0.0.1:8790` for local setups. If your service uses another origin, set that origin explicitly and ensure its CORS policy allows the dashboard origin. See [docs/self-hosting.md](docs/self-hosting.md) for the deployment workflow and security boundary.
 
+## Persistent startup and native installers
+
+The supported installers create a per-user startup entry for the dashboard’s production preview. They do **not** install, configure, or launch Hermes Agent, and they never assume that a `hermes-agent` executable starts the Kanban API. Start and configure Hermes Agent’s Kanban API separately using its own documentation, then point `VITE_HERMES_KANBAN_ORIGIN` (or a same-origin reverse proxy) at that service before building.
+
+- Linux: `bash installers/install-linux.sh` (systemd user service)
+- macOS: double-click `installers/install-macos.command` (LaunchAgent)
+- Windows: run `powershell -ExecutionPolicy Bypass -File installers/install-windows.ps1` (Task Scheduler)
+
+The launcher serves the built `dist/` app at `http://127.0.0.1:4175` and fails clearly if the build is missing. The API remains a separate prerequisite; the installer cannot verify or manage its lifecycle.
+
 ## Production-like local preview
 
 ```bash

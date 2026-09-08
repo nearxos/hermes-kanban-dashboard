@@ -34,9 +34,10 @@ export function taskActivityLabel(task: Pick<DashboardTask, 'status' | 'runs'>):
   return 'Not started'
 }
 
-export function configuredHermesOrigin(): string | null {
+/** The proxy origin is the safe default for packaged and local production serving. */
+export function configuredHermesOrigin(): string {
   const origin = import.meta.env.VITE_HERMES_KANBAN_ORIGIN
-  return typeof origin === 'string' && origin.trim() ? origin.trim() : null
+  return typeof origin === 'string' && origin.trim() ? origin.trim() : '/hermes-api'
 }
 
 export function fixtureData(): DashboardTask[] {
@@ -94,11 +95,10 @@ export async function loadLiveTaskDetail(client: HermesKanbanClient, taskId: str
 
 export async function resolveDashboardSource(): Promise<DashboardSource> {
   const origin = configuredHermesOrigin()
-  if (!origin) return { client: null, label: 'Synthetic source · read-only', state: 'offline' }
   const client = createHermesClient(origin)
   try {
     await client.getStats()
-    return { client, label: 'Hermes API · read-only', state: 'connected' }
+    return { client, label: 'Hermes Agent · connected', state: 'connected' }
   } catch {
     return { client, label: 'Hermes API unavailable · fixture fallback', state: 'degraded' }
   }

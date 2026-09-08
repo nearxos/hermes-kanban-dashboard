@@ -14,7 +14,9 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "check": "npm test && npm run build && git diff --check"
+    "check": "npm test && npm run build && git diff --check",
+    "serve": "vite preview --host 127.0.0.1 --port 4175",
+    "install:linux": "bash installers/install-linux.sh"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
