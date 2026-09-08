@@ -1,7 +1,7 @@
 import { useLayoutEffect, useEffect, useMemo, useRef, useState } from 'react'
 import fixture from '../fixtures/kanban/states.json'
-import { fixtureData, loadLiveTaskDetail, loadLiveTasks, resolveDashboardSource, subscribeToBoardEvents, type DashboardTask } from './adapter/source'
-import type { HermesKanbanClient } from './adapter/hermes-kanban-client'
+import { fixtureData, loadLiveTaskDetail, loadLiveTasks, resolveDashboardSource, subscribeToBoardEvents, taskActivityLabel, type DashboardTask } from './adapter/source'
+import type { HermesAssignee, HermesConfig, HermesKanbanClient, HermesProject } from './adapter/hermes-kanban-client'
 import './styles.css'
 
 type Status = (typeof fixture.statuses)[number]
@@ -57,10 +57,16 @@ function App() {
   const [lastSync, setLastSync] = useState<number | null>(null)
   const [boards, setBoards] = useState<Array<{ slug: string; name: string }>>([])
   const [selectedBoard, setSelectedBoard] = useState('')
+  const selectedBoardRef = useRef('')
+  selectedBoardRef.current = selectedBoard
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [mutationError, setMutationError] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
-  const [newTitle, setNewTitle] = useState('')
+  const [boardCreateOpen, setBoardCreateOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [assignees, setAssignees] = useState<HermesAssignee[]>([])
+  const [projects, setProjects] = useState<HermesProject[]>([])
+  const [hermesConfig, setHermesConfig] = useState<HermesConfig | null>(null)
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -81,10 +87,16 @@ function App() {
       setHermesClient(source.client)
       if (!source.client) return
       const available = await source.client.getBoards()
-      if (mounted) { setBoards(available.boards.filter(board => !board.archived)); setSelectedBoard(available.current ?? available.boards[0]?.slug ?? '') }
+      const [profileResult, configResult, projectResult] = await Promise.allSettled([source.client.getAssignees(), source.client.getConfig(), source.client.getProjects()])
+      if (mounted) {
+        if (profileResult.status === 'fulfilled') setAssignees(profileResult.value.assignees)
+        if (configResult.status === 'fulfilled') setHermesConfig(configResult.value)
+        if (projectResult.status === 'fulfilled') setProjects(projectResult.value.projects.filter(project => !project.archived))
+        setBoards(available.boards.filter(board => !board.archived)); setSelectedBoard(available.current ?? available.boards[0]?.slug ?? '')
+      }
       const refreshBoard = async () => {
         try {
-          const nextTasks = await loadLiveTasks(source.client!, selectedBoard || available.current)
+          const nextTasks = await loadLiveTasks(source.client!, selectedBoardRef.current || available.current)
           if (mounted) {
             setLiveTasks(nextTasks)
             setLastSync(Date.now())
@@ -105,6 +117,10 @@ function App() {
         }, 250)
       }
       if (mounted) stopEvents = subscribeToBoardEvents(source.client, scheduleRefresh)
+      const pollingTimer = window.setInterval(() => { void refreshBoard() }, 3000)
+      const previousCleanup = () => window.clearInterval(pollingTimer)
+      const originalCleanup = stopEvents
+      stopEvents = () => { originalCleanup?.(); previousCleanup() }
     }
     void start()
     return () => {
@@ -145,8 +161,8 @@ function App() {
   const needsReview = sourceTasks.filter(task => task.status === 'review').length
   const attention = sourceTasks.filter(task => task.status === 'blocked').length
   const boardRef = useRef<HTMLDivElement>(null)
-  const refreshLive = async () => { if (!hermesClient) return; try { setLiveTasks(await loadLiveTasks(hermesClient, selectedBoard)); setLastSync(Date.now()) } catch (error) { setMutationError(error instanceof Error ? error.message : 'Unable to refresh board') } }
-  const moveTask = async (task: Task, status: string) => { if (!hermesClient || !selectedBoard) return; setMutationError(''); try { await hermesClient.moveTask(task.id, status, selectedBoard); await refreshLive() } catch (error) { setMutationError(error instanceof Error ? error.message : 'Unable to move task') } }
+  const refreshLive = async (boardName = selectedBoard) => { if (!hermesClient || !boardName) return; try { const next = await loadLiveTasks(hermesClient, boardName); setLiveTasks(next); setLastSync(Date.now()) } catch (error) { setMutationError(error instanceof Error ? error.message : 'Unable to refresh board') } }
+  const moveTask = async (task: Task, status: string) => { const boardName = selectedBoard; if (!hermesClient || !boardName) return; setMutationError(''); try { await hermesClient.moveTask(task.id, status, boardName); await refreshLive(boardName) } catch (error) { setMutationError(error instanceof Error ? error.message : 'Unable to move task') } }
   const switchBoard = async (slug: string) => { if (!hermesClient) return; setMutationError(''); try { setSelectedBoard(slug); setLiveTasks(await loadLiveTasks(hermesClient, slug)); setLastSync(Date.now()) } catch (error) { setMutationError(error instanceof Error ? error.message : 'Unable to switch board') } }
   const [connections, setConnections] = useState<Connection[]>([])
 
@@ -173,7 +189,7 @@ function App() {
           <p className="eyebrow">Hermes / operator board</p>
           <h1>Operator Kanban</h1>
         </div>
-        <div className="top-actions"><button className="action" onClick={() => setCreateOpen(true)} disabled={!hermesClient}>+ New task</button></div>
+        <div className="top-actions"><button className="action secondary" onClick={() => setBoardCreateOpen(true)} disabled={!hermesClient}>+ New board</button><button className="action secondary" onClick={() => setSettingsOpen(true)} disabled={!hermesClient || !selectedBoard}>Board settings</button><button className="action" onClick={() => setCreateOpen(true)} disabled={!hermesClient || !selectedBoard}>+ New task</button></div>
         <div className="connection" role="status" aria-live="polite"><span className="pulse" /> {sourceLabel}{lastSync ? <small> · synced {new Date(lastSync).toLocaleTimeString()}</small> : null}</div>
       </header>
       {boards.length > 0 && <label className="board-picker">Board <select aria-label="Select board" value={selectedBoard} onChange={event => void switchBoard(event.target.value)}>
@@ -222,8 +238,10 @@ function App() {
         })}
       </section>
 
-      {createOpen && <CreateTask client={hermesClient} board={selectedBoard} onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); void refreshLive() }} />}
-      {selected && <TaskDrawer task={selected} client={hermesClient} board={selectedBoard} loading={detailLoading} onClose={() => setSelectedId(null)} onCommented={() => void refreshLive()} />}
+      {createOpen && <CreateTask client={hermesClient} board={selectedBoard} assignees={assignees} onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); void refreshLive() }} />}
+      {boardCreateOpen && <CreateBoard client={hermesClient} projects={projects} onClose={() => setBoardCreateOpen(false)} onCreated={async () => { setBoardCreateOpen(false); if (hermesClient) { const next = await hermesClient.getBoards(); setBoards(next.boards.filter(board => !board.archived)); setSelectedBoard(next.current ?? selectedBoard) } }} />}
+      {settingsOpen && <BoardSettings client={hermesClient} board={selectedBoard} config={hermesConfig} onClose={() => setSettingsOpen(false)} onSaved={async () => { setSettingsOpen(false); if (hermesClient) { const next = await hermesClient.getBoards(); setBoards(next.boards.filter(board => !board.archived)) } }} />}
+      {selected && <TaskDrawer task={selected} client={hermesClient} board={selectedBoard} mutationsEnabled={liveTasks !== null} loading={detailLoading} onClose={() => setSelectedId(null)} onCommented={detail => { setSelectedDetail(detail); void refreshLive() }} />}
     </main>
   )
 }
@@ -238,25 +256,26 @@ function TaskCard({ task, selected, onSelect }: { task: Task; selected: boolean;
   return <button draggable className={`task-card ${selected ? 'selected' : ''}`} data-task-id={task.id} onDragStart={event => { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/task-id', task.id) }} onClick={onSelect} style={{ borderLeftColor: meta.tone }}>
     <span className="task-title">{task.title}</span>
     <span className="task-body">{task.body}</span>
-    <span className="task-footer"><span className="drag-hint">↕ Drag to move</span><span className="profile">{task.assignee ?? 'unassigned'}</span><span>{latest ? `run ${latest.id}` : 'not started'}</span></span>
+    <span className="task-footer"><span className="drag-hint">↕ Drag to move</span><span className="profile">{task.assignee ?? 'unassigned'}</span><span>{latest ? `run ${latest.id} · ${taskActivityLabel(task)}` : taskActivityLabel(task)}</span></span>
   </button>
 }
 
-function TaskDrawer({ task, client, board, loading, onClose, onCommented }: { task: Task; client: HermesKanbanClient | null; board: string; loading: boolean; onClose: () => void; onCommented: () => void }) {
+function TaskDrawer({ task, client, board, mutationsEnabled, loading, onClose, onCommented }: { task: Task; client: HermesKanbanClient | null; board: string; mutationsEnabled: boolean; loading: boolean; onClose: () => void; onCommented: (detail: Task) => void }) {
   const meta = statusMeta[task.status]
   const [comment, setComment] = useState('')
   const [commentError, setCommentError] = useState('')
   const [comments, setComments] = useState(task.comments)
+  useEffect(() => { setComments(task.comments) }, [task.id, task.comments])
   const submitComment = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!client || !board || !comment.trim()) return
+    if (!client || !board || !mutationsEnabled || !comment.trim()) return
     setCommentError('')
     try {
-      const result = await client.addComment(task.id, comment.trim(), board)
-      const next = result as { comments?: typeof comments }
-      if (next.comments) setComments(next.comments)
+      await client.addComment(task.id, comment.trim(), board)
+      const detail = await loadLiveTaskDetail(client, task.id, board)
+      setComments(detail.comments)
       setComment('')
-      onCommented()
+      onCommented(detail)
     } catch (error) { setCommentError(error instanceof Error ? error.message : 'Unable to add comment') }
   }
   return <aside className="drawer" aria-label="Task details">
@@ -264,7 +283,7 @@ function TaskDrawer({ task, client, board, loading, onClose, onCommented }: { ta
     <h2>{task.title}</h2><p className="drawer-body">{task.body}</p>
     <Evidence label="Owner" value={task.assignee ?? 'Unassigned'} /><Evidence label="Workspace" value={task.workspace_path ?? 'Scratch workspace'} />
     {loading && <p className="loading-note" role="status" aria-live="polite">Loading live task evidence…</p>}
-    <section className="evidence"><h3>Review / approval</h3><p className="muted">For review tasks, add approval notes here. Move the task to Done after approval, or leave it in Review with requested changes.</p><form className="comment-form" onSubmit={submitComment}><textarea aria-label="Add review comment" placeholder="Add review notes or approval…" value={comment} onChange={event => setComment(event.target.value)} /><button className="action" type="submit" disabled={!comment.trim()}>Add comment</button></form>{commentError && <p className="error">{commentError}</p>}</section>
+    <section className="evidence"><h3>Review / approval</h3><p className="muted">For review tasks, add approval notes here. Move the task to Done after approval, or leave it in Review with requested changes.</p>{!mutationsEnabled && <p className="muted">Comments are disabled in fixture/fallback mode. Select a live Hermes task to add a comment.</p>}<form className="comment-form" onSubmit={submitComment}><textarea aria-label="Add review comment" placeholder="Add review notes or approval…" value={comment} disabled={!mutationsEnabled} onChange={event => setComment(event.target.value)} /><button className="action" type="submit" disabled={!mutationsEnabled || !comment.trim()}>Add comment</button></form>{commentError && <p className="error">{commentError}</p>}</section>
     <section className="evidence"><h3>Review evidence</h3>{task.verification.length ? <ul>{task.verification.map(item => <li key={item}><span className="check">✓</span>{item}</li>)}</ul> : <p className="muted">No verification recorded.</p>}</section>
     <section className="evidence"><h3>Comments</h3>{comments.length ? comments.map(item => <div className="run" key={item.id}><div><b>{item.author}</b></div><p>{item.body}</p></div>) : <p className="muted">No comments recorded.</p>}</section>
     <section className="evidence"><h3>Run history</h3>{task.runs.length ? task.runs.map(run => <div className="run" key={run.id}><div><b>Run {run.id}</b><span className="run-state">{run.outcome ?? run.status}</span></div><p>{run.summary ?? run.error ?? 'No summary recorded.'}</p></div>) : <p className="muted">No runs yet.</p>}</section>
@@ -277,4 +296,8 @@ function Evidence({ label, value }: { label: string; value: string }) { return <
 
 export default App
 
-function CreateTask({ client, board, onClose, onCreated }: { client: HermesKanbanClient | null; board: string; onClose: () => void; onCreated: () => void }) { const [title, setTitle] = useState(''); const [body, setBody] = useState(''); const [error, setError] = useState(''); return <div className="modal"><form onSubmit={async event => { event.preventDefault(); if (!client || !board || !title.trim()) return; try { await client.createTask({ title: title.trim(), body, status: 'todo' }, board); onCreated() } catch (e) { setError(e instanceof Error ? e.message : 'Unable to create task') } }}><h2>New task</h2><input autoFocus placeholder="Task title" value={title} onChange={e => setTitle(e.target.value)} /><textarea placeholder="Description" value={body} onChange={e => setBody(e.target.value)} /><div className="modal-actions"><button type="button" onClick={onClose}>Cancel</button><button className="action" type="submit">Create task</button></div>{error && <p className="error">{error}</p>}</form></div> }
+function CreateTask({ client, board, assignees, onClose, onCreated }: { client: HermesKanbanClient | null; board: string; assignees: HermesAssignee[]; onClose: () => void; onCreated: () => void }) { const [title, setTitle] = useState(''); const [body, setBody] = useState(''); const [profile, setProfile] = useState(''); const [error, setError] = useState(''); return <div className="modal"><form onSubmit={async event => { event.preventDefault(); if (!client || !board || !title.trim()) return; try { const created = await client.createTask({ title: title.trim(), body, status: 'todo', assignee: profile || null }, board) as { task?: { id: string }; id?: string }; const taskId = created.task?.id ?? created.id; if (taskId && profile) await client.assignTask(taskId, profile, board); onCreated() } catch (e) { setError(e instanceof Error ? e.message : 'Unable to create task') } }}><h2>New task</h2><input autoFocus placeholder="Task title" value={title} onChange={e => setTitle(e.target.value)} /><textarea placeholder="Description" value={body} onChange={e => setBody(e.target.value)} /><label>Hermes profile<select value={profile} onChange={e => setProfile(e.target.value)}><option value="">Unassigned</option>{assignees.map(item => <option key={item.name} value={item.name}>{item.name}</option>)}</select></label><p className="muted">The selected profile is assigned after the task is created.</p><div className="modal-actions"><button type="button" onClick={onClose}>Cancel</button><button className="action" type="submit">Create task</button></div>{error && <p className="error">{error}</p>}</form></div> }
+
+function CreateBoard({ client, projects, onClose, onCreated }: { client: HermesKanbanClient | null; projects: HermesProject[]; onClose: () => void; onCreated: () => void }) { const [name, setName] = useState(''); const [slug, setSlug] = useState(''); const [description, setDescription] = useState(''); const [project, setProject] = useState(''); const [switchTo, setSwitchTo] = useState(true); const [error, setError] = useState(''); return <div className="modal"><form onSubmit={async event => { event.preventDefault(); if (!client || !name.trim() || !slug.trim()) return; try { await client.createBoard({ name: name.trim(), slug: slug.trim().toLowerCase(), description: description.trim(), switch: switchTo }); if (project) await client.bindBoardProject(slug.trim().toLowerCase(), project); onCreated() } catch (e) { setError(e instanceof Error ? e.message : 'Unable to create or bind board') } }}><h2>New board</h2><input autoFocus placeholder="Board name" value={name} onChange={e => setName(e.target.value)} /><input placeholder="URL-safe slug, e.g. release-planning" value={slug} onChange={e => setSlug(e.target.value)} /><textarea placeholder="Description" value={description} onChange={e => setDescription(e.target.value)} /><label>Hermes project<select value={project} onChange={e => setProject(e.target.value)}><option value="">No project binding</option>{projects.map(item => <option key={item.id} value={item.slug}>{item.name} · {item.slug}</option>)}</select></label><p className="muted">The selected project will be bound after the board is created.</p><label className="check-row"><input type="checkbox" checked={switchTo} onChange={e => setSwitchTo(e.target.checked)} /> Switch to this board after creation</label><div className="modal-actions"><button type="button" onClick={onClose}>Cancel</button><button className="action" type="submit">Create board</button></div>{error && <p className="error">{error}</p>}</form></div> }
+
+function BoardSettings({ client, board, config, onClose, onSaved }: { client: HermesKanbanClient | null; board: string; config: HermesConfig | null; onClose: () => void; onSaved: () => void }) { const [name, setName] = useState(''); const [description, setDescription] = useState(''); const [profile, setProfile] = useState(''); const [runtime, setRuntime] = useState(''); const [retries, setRetries] = useState(''); const [goalMode, setGoalMode] = useState(false); const [goalTurns, setGoalTurns] = useState(''); const [skills, setSkills] = useState(''); const [template, setTemplate] = useState(''); const [error, setError] = useState(''); useEffect(() => { if (client && board) void client.getBoardDetail(board).then(result => { const b = result.board; const o = b.orchestration ?? {}; setName(b.name); setDescription(b.description ?? ''); setProfile(o.default_profile ?? ''); setRuntime(o.max_runtime_seconds?.toString() ?? ''); setRetries(o.max_retries?.toString() ?? ''); setGoalMode(Boolean(o.goal_mode)); setGoalTurns(o.goal_max_turns?.toString() ?? ''); setSkills((o.skills ?? []).join(', ')); setTemplate(o.workflow_template_id ?? '') }).catch(() => setError('Unable to load board settings')) }, [client, board]); return <div className="modal"><form onSubmit={async event => { event.preventDefault(); if (!client || !board || !name.trim()) return; try { await client.updateBoard(board, { name: name.trim(), description: description.trim(), orchestration: { default_profile: profile || null, max_runtime_seconds: runtime ? Number(runtime) : null, max_retries: retries ? Number(retries) : null, goal_mode: goalMode, goal_max_turns: goalTurns ? Number(goalTurns) : null, skills: skills.split(',').map(item => item.trim()).filter(Boolean), workflow_template_id: template || null } }); onSaved() } catch (e) { setError(e instanceof Error ? e.message : 'Unable to save board settings') } }}><h2>Board settings</h2><p className="muted">Board: <b>{board}</b></p><input placeholder="Board name" value={name} onChange={e => setName(e.target.value)} /><textarea placeholder="Description" value={description} onChange={e => setDescription(e.target.value)} /><h3>Orchestration defaults</h3><label>Default profile<input value={profile} onChange={e => setProfile(e.target.value)} placeholder="engineer" /></label><label>Max runtime (seconds)<input type="number" min="1" value={runtime} onChange={e => setRuntime(e.target.value)} /></label><label>Max retries<input type="number" min="0" value={retries} onChange={e => setRetries(e.target.value)} /></label><label className="check-row"><input type="checkbox" checked={goalMode} onChange={e => setGoalMode(e.target.checked)} /> Goal mode</label><label>Goal max turns<input type="number" min="1" value={goalTurns} onChange={e => setGoalTurns(e.target.value)} /></label><label>Skills (comma-separated)<input value={skills} onChange={e => setSkills(e.target.value)} /></label><label>Workflow template<input value={template} onChange={e => setTemplate(e.target.value)} placeholder="template-id" /></label><section className="settings-capabilities"><h3>Hermes capabilities</h3><p className="muted">New tasks inherit these defaults; explicit task values win.</p><p className="muted">Lifecycle columns: {(config?.columns ?? []).join(', ') || 'Unavailable'}</p></section><div className="modal-actions"><button type="button" onClick={onClose}>Cancel</button><button className="action" type="submit">Save settings</button></div>{error && <p className="error">{error}</p>}</form></div> }

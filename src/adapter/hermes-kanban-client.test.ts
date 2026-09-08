@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createHermesClient, HermesKanbanClient, normalizeOrigin } from './hermes-kanban-client'
+import { taskActivityLabel } from './source'
 
 describe('Hermes Kanban adapter', () => {
   it('normalizes origins without changing the path contract', () => {
@@ -11,7 +12,7 @@ describe('Hermes Kanban adapter', () => {
     const client = new HermesKanbanClient('http://localhost:8000')
     expect(client.eventsUrl(42)).toBe('http://localhost:8000/api/events?since=42')
     expect(client.eventsUrl()).toBe('http://localhost:8000/api/events')
-    expect(client.eventsSocketUrl()).toBe('ws://localhost:8000/api/events')
+    expect(client.eventsStreamUrl()).toBe('http://localhost:8000/api/events/stream')
   })
 
   it('loads board and task detail payloads through the REST contract', async () => {
@@ -41,6 +42,33 @@ describe('Hermes Kanban adapter', () => {
     expect(fetcher).toHaveBeenNthCalledWith(1, 'http://localhost:8000/api/tasks?board=default', { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'New task', body: 'Details', status: 'todo' }) })
     expect(fetcher).toHaveBeenNthCalledWith(2, 'http://localhost:8000/api/tasks/task%2F1?board=default', { method: 'PATCH', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'review' }) })
     expect(fetcher).toHaveBeenNthCalledWith(3, 'http://localhost:8000/api/tasks/task%2F1/comments?board=default', { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ body: 'Approved after review.', author: 'kanban-dashboard' }) })
+  })
+  it('supports boards, profile lookup, assignment, and board settings', async () => {
+    const response = () => new Response(JSON.stringify({ ok: true, assignees: [{ name: 'engineer' }], board: { slug: 'ops', name: 'Ops' }, columns: ['todo'] }), { status: 200 })
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => response())
+    const client = new HermesKanbanClient('http://localhost:8000', fetcher)
+    await client.createBoard({ slug: 'ops', name: 'Ops', switch: true })
+    await client.getAssignees()
+    await client.assignTask('task-1', 'engineer', 'ops')
+    await client.getBoardDetail('ops')
+    await client.updateBoard('ops', { name: 'Operations' })
+    await client.getConfig()
+    expect(fetcher.mock.calls.map(call => call[0])).toEqual([
+      'http://localhost:8000/api/boards',
+      'http://localhost:8000/api/assignees',
+      'http://localhost:8000/api/tasks/task-1/assign?board=ops',
+      'http://localhost:8000/api/boards/ops',
+      'http://localhost:8000/api/boards/ops',
+      'http://localhost:8000/api/config'
+    ])
+  })
+  it('labels lifecycle and run activity without confusing completed tasks for unstarted work', () => {
+    expect(taskActivityLabel({ status: 'done', runs: [] })).toBe('Completed')
+    expect(taskActivityLabel({ status: 'archived', runs: [] })).toBe('Archived')
+    expect(taskActivityLabel({ status: 'todo', runs: [] })).toBe('Not started')
+    expect(taskActivityLabel({ status: 'running', runs: [{ id: 4, status: 'running' }] })).toBe('Running')
+    expect(taskActivityLabel({ status: 'done', runs: [{ id: 5, status: 'done', outcome: 'completed' }] })).toBe('Completed')
+    expect(taskActivityLabel({ status: 'blocked', runs: [{ id: 6, status: 'failed', error: 'boom' }] })).toBe('Failed')
   })
   it('preserves HTTP failures as visible adapter errors', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('', { status: 503 }))

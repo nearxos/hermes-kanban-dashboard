@@ -9,7 +9,7 @@ Initial implementation choices:
 - **UI:** React 19
 - **Build/dev server:** Vite
 - **Server-state cache:** TanStack Query
-- **Live updates:** native WebSocket client using Hermes's `/events?since=` contract
+- **Live updates:** native `EventSource` client using Hermes's `/api/events/stream` SSE contract
 - **Styling:** CSS modules or local CSS with design tokens; avoid introducing a second component framework until a concrete need exists
 - **Validation:** TypeScript types at the adapter boundary plus runtime validation for network payloads before cache insertion
 - **Test:** Vitest and Testing Library for adapter/state/UI invariants; Playwright later for browser acceptance flows
@@ -17,7 +17,7 @@ Initial implementation choices:
 
 ## Why this fits Hermes
 
-The local Hermes Agent source already has a mature Kanban dashboard plugin and REST/WebSocket contract. Reusing that contract avoids duplicating task lifecycle semantics, worker dispatch, retries, comments, attachments, and board isolation.
+The local Hermes Agent source already has a mature Kanban dashboard plugin and REST/SSE contract. Reusing that contract avoids duplicating task lifecycle semantics, worker dispatch, retries, comments, attachments, and board isolation.
 
 Hermes Desktop also establishes the relevant client patterns:
 
@@ -29,7 +29,20 @@ Hermes Desktop also establishes the relevant client patterns:
 - narrow feature-local adapters
 - optimistic writes only where the product explicitly enables mutation
 
-The first version of this project should be **read-only**. It should display review evidence rather than mutate the board until the adapter and safety model are verified.
+The dashboard has moved beyond the original read-only MVP. The current surface includes:
+
+- board selector and board summary
+- lifecycle columns and task cards
+- task detail drawer
+- run history with retry lineage
+- event/activity stream grouped by run
+- review evidence and comments
+- dependency links and blocked reason
+- explicit live/fallback connection state
+- task creation, assignment, comments, and drag-and-drop movement
+- board creation and board-specific orchestration defaults
+
+Mutation controls use explicit board-scoped API calls followed by REST read-back. Destructive task deletion and artifact upload remain out of scope.
 
 ## Adapter boundary
 
@@ -74,17 +87,15 @@ Read-only MVP acceptance target:
 - worker summary and liveness indicators
 - review evidence: changed files, verification commands/results, artifacts, residual risk, and failure summary
 - dependency links and blocked reason
-- explicit stale/reconnecting state
+- explicit SSE connection state with polling fallback
 - synthetic fixture mode for development when no live tasks exist
 
-Mutation controls are intentionally out of scope for MVP:
+The following remain outside the current dashboard scope:
 
-- create/update/delete tasks
-- drag-and-drop status changes
-- comments
-- reassignment/reclaim
+- task deletion
 - artifact upload
-- approval or request-changes actions
+- reassignment/reclaim controls beyond explicit profile assignment
+- direct approval/request-changes workflow actions beyond comments and status movement
 
 ## Rejected alternatives
 

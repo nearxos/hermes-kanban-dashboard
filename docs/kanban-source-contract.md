@@ -54,9 +54,21 @@ The shipped Hermes Kanban plugin is mounted under `/api/plugins/kanban/` and exp
 - `GET /profiles`
 - `GET /config`
 - `GET /orchestration`
-- `WS /events?since={event_id}`
+- `GET /events`
+- `GET /events/stream` (SSE)
 
-The same plugin also exposes mutation endpoints, but the new dashboard should keep its MVP read-only until the source adapter and safety model are verified.
+The same plugin also exposes mutation endpoints used by the dashboard after the live connection is verified:
+
+- `POST /boards`
+- `PATCH /boards/{slug}`
+- `POST /boards/{slug}/bind-project`
+- `POST /boards/{slug}/unbind-project`
+- `POST /tasks`
+- `PATCH /tasks/{task_id}`
+- `POST /tasks/{task_id}/comments`
+- `POST /tasks/{task_id}/assign`
+
+The dashboard performs read-after-write refreshes after mutations and retains fixture fallback when the live source is unavailable.
 
 ## Important semantics for the dashboard
 

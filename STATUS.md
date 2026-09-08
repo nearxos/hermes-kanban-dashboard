@@ -17,36 +17,33 @@ This status file establishes the Hermes project handoff point. The repository st
 - Root-level project files: `IDEA.md`, `README.md`, `.gitignore`, `STATUS.md`
 - Repository changes: inspect with `git status --short --branch` before work
 - Implementation stack and architecture: selected; see `docs/architecture-decision-record.md`
-- Working dashboard scaffold: React/Vite fixture-backed read-only UI; `npm run build` passes
-- Browser verification: local Vite page rendered lifecycle board and task evidence drawer successfully
-- Task details UX: centered modal window, widened to 720px with viewport-safe max height
-- Dependency flow UX: directional SVG connectors with animated flow dots between linked tasks
-- Hermes adapter increment: typed REST client and URL/error contract tests added under `src/adapter/`; fixture mode remains the active UI source
+- Working dashboard: React/Vite fixture and live Hermes UI with board selection, task cards, detail drawer, comments, and responsive layout
+- Hermes adapter increment: typed REST client and URL/error contract tests under `src/adapter/`
 - Source integration: optional `VITE_HERMES_KANBAN_ORIGIN` probe with visible connected/degraded state and safe fixture fallback
-- Live board integration: configured API board payloads now populate cards/metrics; WebSocket events refresh the board with bounded reconnects
+- Live board integration: configured API board payloads populate cards/metrics; Hermes SSE events and three-second polling refresh the selected board
 - Live task detail integration: selected tasks fetch `/tasks/:id` and expose runs, artifacts, comments, and event history in the drawer
+- Mutation surface: board creation, task creation, profile assignment, drag-and-drop movement, comments, and board orchestration settings
 - Accessibility/test polish: Escape closes the drawer; connection and detail loading states use live status announcements; adapter coverage now includes board/detail payloads
 - Product baseline completed: debounced live refreshes, last-sync indicator, responsive no-overflow layout, centered detail drawer, fixture fallback, and verified desktop/mobile browser behavior
 - Release hardening: `npm run check` now runs tests, production build, and diff validation; live smoke-test/deployment instructions are documented in `docs/live-smoke-test.md`
 - Live lifecycle correction: board synchronization requests `archived=true` so the Archive column is preserved in Hermes-connected mode
 - Canonical Hermes project record: verified as `kanban-hermes-dashboard` (`p_88977672`)
-- Dedicated Kanban board: pending; creation was blocked by the active delegated-child mutation guard
+- Dedicated Kanban board: created and verified as `kanban-hermes-dashboard`; bound to project `p_88977672`; remains non-current so the active `test` board was not switched
 
 ## Active work
 
-Product baseline is complete. The next phase is live-environment validation and release hardening: confirm the Hermes read-only API/WebSocket payloads, configure the endpoint locally, and package the dashboard for its intended deployment target.
+Feature implementation is complete for the current scope. Remaining work is release hardening: run disposable-board acceptance checks, decide the deployment target, review uncommitted changes, and create the initial commit.
 
 ## Open blockers
 
-- The local Hermes Kanban service requires `PyYAML` in its virtual environment; without it, `/api/board` raised `ModuleNotFoundError: No module named 'yaml'`. Installed `PyYAML 6.0.3` with `uv` and restarted the service; `/api/board` now returns 200.
+- The full Hermes backend suite has five unrelated compatibility failures because the installed compatibility module no longer exposes `kanban_db.active_run`; targeted board/task tests pass.
 - The dashboard uses a same-origin `/hermes-api` Vite proxy to avoid browser CORS failures when reaching the local service on port 8790.
-- Create and bind the dedicated `kanban-hermes-dashboard` board from a non-delegated Hermes session; do not switch the current `starlink-quota-controller` board.
 - Choose the deployment target before packaging (local static hosting, Hermes desktop plugin surface, or another internal host).
 - Create an initial commit after reviewing the uncommitted files.
 
 ## Next action
 
-Run a read-only diagnosis of the local Kanban service’s `/api/board` HTTP 500, then rerun the live smoke test; do not mutate boards or tasks from this dashboard session.
+Run the disposable-board live smoke test from `docs/live-smoke-test.md`, then review and commit the implementation.
 
 ## Verification commands
 

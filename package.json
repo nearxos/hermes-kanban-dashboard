@@ -1,7 +1,13 @@
 {
   "name": "kanban-hermes-dashboard",
-  "private": true,
+  "private": false,
   "version": "0.1.0",
+  "description": "A local React dashboard for a user's Hermes Agent Kanban service",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nearxos/hermes-kanban-dashboard.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

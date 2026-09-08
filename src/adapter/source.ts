@@ -19,6 +19,21 @@ export type DashboardTask = {
 
 export type DashboardSource = { client: HermesKanbanClient | null; label: string; state: HermesConnectionState }
 
+export function taskActivityLabel(task: Pick<DashboardTask, 'status' | 'runs'>): string {
+  const latest = task.runs.at(-1)
+  if (latest) {
+    const activity = latest.outcome ?? latest.status
+    if (['done', 'completed', 'succeeded', 'passed'].includes(activity)) return 'Completed'
+    if (['failed', 'error', 'timed_out', 'cancelled'].includes(activity)) return 'Failed'
+    if (['running', 'claimed', 'started'].includes(activity)) return 'Running'
+    return activity.replaceAll('_', ' ')
+  }
+  if (task.status === 'done') return 'Completed'
+  if (task.status === 'archived') return 'Archived'
+  if (task.status === 'running') return 'Running'
+  return 'Not started'
+}
+
 export function configuredHermesOrigin(): string | null {
   const origin = import.meta.env.VITE_HERMES_KANBAN_ORIGIN
   return typeof origin === 'string' && origin.trim() ? origin.trim() : null
@@ -90,21 +105,9 @@ export async function resolveDashboardSource(): Promise<DashboardSource> {
 }
 
 export function subscribeToBoardEvents(client: HermesKanbanClient, onEvent: () => void): () => void {
-  let socket: WebSocket | null = null
-  let stopped = false
-  let retries = 0
-  const connect = () => {
-    if (stopped || retries > 3) return
-    socket = new WebSocket(client.eventsSocketUrl())
-    socket.onmessage = () => onEvent()
-    socket.onopen = () => { retries = 0 }
-    socket.onclose = () => {
-      if (stopped) return
-      retries += 1
-      window.setTimeout(connect, Math.min(1000 * 2 ** retries, 8000))
-    }
-    socket.onerror = () => socket?.close()
-  }
-  connect()
-  return () => { stopped = true; socket?.close() }
+  const stream = new EventSource(client.eventsStreamUrl())
+  const handleEvent = () => onEvent()
+  stream.onmessage = handleEvent
+  stream.addEventListener('kanban', handleEvent)
+  return () => stream.close()
 }
