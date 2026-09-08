@@ -67,5 +67,3 @@ This repository currently integrates as a standalone local web app. No Hermes pl
 - [Self-hosting and deployment](docs/self-hosting.md)
 - [Live smoke test](docs/live-smoke-test.md)
 - [Source/API contract](docs/kanban-source-contract.md)
-- [Architecture decision record](docs/architecture-decision-record.md)
-- [Project status](STATUS.md)
