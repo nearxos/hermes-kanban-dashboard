@@ -48,6 +48,14 @@ The supported installers create a per-user startup entry for the dashboard’s p
 - macOS: double-click `installers/install-macos.command` (LaunchAgent)
 - Windows: run `powershell -ExecutionPolicy Bypass -File installers/install-windows.ps1` (Task Scheduler)
 
+To remove only the dashboard startup entry, use the matching uninstall command:
+
+- Linux: `bash installers/uninstall-linux.sh`
+- macOS: double-click `installers/uninstall-macos.command`
+- Windows: run `powershell -ExecutionPolicy Bypass -File installers/uninstall-windows.ps1`
+
+Uninstall is safe to repeat. It stops/disables and removes only the startup entry created by the matching installer. It does not remove the repository, `dist/` files, Hermes Agent, Hermes Kanban API, boards, tasks, comments, credentials, or any other user data or services.
+
 The launcher serves the built `dist/` app at `http://127.0.0.1:4175` and fails clearly if the build is missing. The API remains a separate prerequisite; the installer cannot verify or manage its lifecycle.
 
 ## Production-like local preview
