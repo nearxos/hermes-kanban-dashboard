@@ -1,0 +1,168 @@
+{
+  "fixture_version": 1,
+  "source": "synthetic contract fixtures derived from local Hermes Kanban schema; not copied from live tasks",
+  "statuses": [
+    "triage",
+    "todo",
+    "scheduled",
+    "ready",
+    "running",
+    "blocked",
+    "review",
+    "done",
+    "archived"
+  ],
+  "tasks": [
+    {
+      "id": "t_fixture_triage",
+      "title": "Define dashboard review workflow",
+      "body": "Turn the initial idea into an explicit review-oriented specification.",
+      "assignee": null,
+      "status": "triage",
+      "priority": 3,
+      "created_by": "fixture",
+      "workspace_kind": "scratch",
+      "workspace_path": null,
+      "branch_name": null,
+      "project_id": "p_fixture",
+      "tenant": null,
+      "result": null,
+      "current_run_id": null,
+      "block_kind": null,
+      "block_recurrences": 0,
+      "runs": [],
+      "events": [
+        {"id": 1, "run_id": null, "kind": "created", "payload": {"status": "triage"}}
+      ],
+      "comments": [],
+      "links": {"parents": [], "children": ["t_fixture_running"]},
+      "artifacts": [],
+      "verification": [],
+      "residual_risk": ["Scope has not been specified."]
+    },
+    {
+      "id": "t_fixture_running",
+      "title": "Inspect Hermes Kanban API",
+      "body": "Inventory the read contract and document endpoint behavior.",
+      "assignee": "researcher",
+      "status": "running",
+      "priority": 5,
+      "created_by": "fixture",
+      "workspace_kind": "dir",
+      "workspace_path": "/workspace/hermes-kanban-dashboard",
+      "branch_name": null,
+      "project_id": "p_fixture",
+      "tenant": null,
+      "result": null,
+      "current_run_id": 12,
+      "block_kind": null,
+      "block_recurrences": 0,
+      "runs": [
+        {"id": 12, "profile": "researcher", "status": "running", "outcome": null, "started_at": 1788855000, "ended_at": null, "summary": null, "metadata": null, "error": null}
+      ],
+      "events": [
+        {"id": 2, "run_id": null, "kind": "created", "payload": {"status": "ready"}},
+        {"id": 3, "run_id": 12, "kind": "claimed", "payload": {"run_id": 12}},
+        {"id": 4, "run_id": 12, "kind": "heartbeat", "payload": {"note": "Reading endpoint definitions."}}
+      ],
+      "comments": [],
+      "links": {"parents": [], "children": ["t_fixture_review"]},
+      "artifacts": [],
+      "verification": [],
+      "residual_risk": ["Work is still in progress."]
+    },
+    {
+      "id": "t_fixture_blocked",
+      "title": "Deploy review dashboard",
+      "body": "Start the container on the PC after the image and health checks pass.",
+      "assignee": "homelab-ops",
+      "status": "blocked",
+      "priority": 4,
+      "created_by": "fixture",
+      "workspace_kind": "dir",
+      "workspace_path": "/workspace/hermes-kanban-dashboard",
+      "branch_name": null,
+      "project_id": "p_fixture",
+      "tenant": null,
+      "result": null,
+      "current_run_id": null,
+      "block_kind": "needs_input",
+      "block_recurrences": 0,
+      "runs": [
+        {"id": 13, "profile": "homelab-ops", "status": "blocked", "outcome": "blocked", "started_at": 1788851000, "ended_at": 1788852000, "summary": "Container recipe is ready for review.", "metadata": {"changed_files": ["Dockerfile", "compose.yaml"], "verification": ["docker build"], "residual_risk": ["Needs approval before host deployment."]}, "error": null}
+      ],
+      "events": [
+        {"id": 5, "run_id": null, "kind": "created", "payload": {"status": "ready"}},
+        {"id": 6, "run_id": 13, "kind": "blocked", "payload": {"kind": "needs_input", "reason": "Needs approval before host deployment."}}
+      ],
+      "comments": [],
+      "links": {"parents": ["t_fixture_review"], "children": []},
+      "artifacts": [{"filename": "compose.yaml", "provenance": "run:13", "state": "current"}],
+      "verification": ["docker build"],
+      "residual_risk": ["Host deployment has not been approved."]
+    },
+    {
+      "id": "t_fixture_review",
+      "title": "Implement review-first task drawer",
+      "body": "Show the request, worker result, run history, diff, artifacts, and verification evidence.",
+      "assignee": "reviewer",
+      "status": "review",
+      "priority": 5,
+      "created_by": "fixture",
+      "workspace_kind": "worktree",
+      "workspace_path": "/workspace/hermes-kanban-dashboard/.worktrees/t_fixture_review",
+      "branch_name": "feature/review-drawer",
+      "project_id": "p_fixture",
+      "tenant": null,
+      "result": null,
+      "current_run_id": null,
+      "block_kind": null,
+      "block_recurrences": 0,
+      "runs": [
+        {"id": 14, "profile": "builder", "status": "review", "outcome": "review_requested", "started_at": 1788849000, "ended_at": 1788853000, "summary": "Implemented the review drawer and linked evidence panels.", "metadata": {"changed_files": ["src/review/TaskDrawer.tsx", "tests/review/TaskDrawer.test.tsx"], "verification": ["npm test -- TaskDrawer", "git diff --check"], "residual_risk": ["Responsive behavior needs human review."]}, "error": null}
+      ],
+      "events": [
+        {"id": 7, "run_id": null, "kind": "created", "payload": {"status": "ready"}},
+        {"id": 8, "run_id": 14, "kind": "review_requested", "payload": {"implementer": "builder", "reviewer": "reviewer", "summary": "Implemented the review drawer and linked evidence panels."}}
+      ],
+      "comments": [{"id": 1, "author": "reviewer", "body": "Please verify the narrow-screen layout.", "created_at": 1788853200}],
+      "links": {"parents": ["t_fixture_running"], "children": ["t_fixture_blocked"]},
+      "artifacts": [
+        {"filename": "TaskDrawer.diff", "provenance": "run:14", "state": "current"},
+        {"filename": "TaskDrawer.test-output.txt", "provenance": "run:14", "state": "current"}
+      ],
+      "verification": ["npm test -- TaskDrawer", "git diff --check"],
+      "residual_risk": ["Responsive behavior needs human review."]
+    },
+    {
+      "id": "t_fixture_done",
+      "title": "Define source adapter contract",
+      "body": "Document the confirmed Hermes Kanban read model.",
+      "assignee": "engineer",
+      "status": "done",
+      "priority": 4,
+      "created_by": "fixture",
+      "workspace_kind": "worktree",
+      "workspace_path": "/workspace/hermes-kanban-dashboard/.worktrees/t_fixture_done",
+      "branch_name": "docs/source-contract",
+      "project_id": "p_fixture",
+      "tenant": null,
+      "result": "Source contract documented and verified against local Hermes code.",
+      "current_run_id": null,
+      "block_kind": null,
+      "block_recurrences": 0,
+      "runs": [
+        {"id": 15, "profile": "engineer", "status": "done", "outcome": "completed", "started_at": 1788845000, "ended_at": 1788849000, "summary": "Documented tasks, runs, events, comments, links, attachments, boards, and WebSocket updates.", "metadata": {"changed_files": ["docs/source-contract.md"], "verification": ["python -m pytest tests/contract -q"], "residual_risk": []}, "error": null}
+      ],
+      "events": [
+        {"id": 9, "run_id": null, "kind": "created", "payload": {"status": "ready"}},
+        {"id": 10, "run_id": 15, "kind": "completed", "payload": {"summary": "Documented source contract."}}
+      ],
+      "comments": [],
+      "links": {"parents": [], "children": []},
+      "artifacts": [{"filename": "source-contract.md", "provenance": "run:15", "state": "current"}],
+      "verification": ["python -m pytest tests/contract -q"],
+      "residual_risk": []
+    }
+  ]
+}

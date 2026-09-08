@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+
+# Build and coverage output
+dist/
+build/
+.next/
+coverage/
+
+# Local environment and editor files
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+
+# Caches
+.cache/
+.pytest_cache/
+__pycache__/
